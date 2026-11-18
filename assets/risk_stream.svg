@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 34" width="460" height="34">
+  <defs>
+    <!-- Recessed 3D Track -->
+    <linearGradient id="trackBg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0b0f14" />
+      <stop offset="50%" stop-color="#111822" />
+      <stop offset="100%" stop-color="#1a2332" />
+    </linearGradient>
+    <linearGradient id="trackBorder" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b" />
+      <stop offset="100%" stop-color="#334155" />
+    </linearGradient>
+
+    <!-- Vibrant 3D Green Cylinder/Capsule Gradient -->
+    <linearGradient id="barGreen" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#86efac" />
+      <stop offset="20%" stop-color="#4ade80" />
+      <stop offset="55%" stop-color="#22c55e" />
+      <stop offset="85%" stop-color="#16a34a" />
+      <stop offset="100%" stop-color="#14532d" />
+    </linearGradient>
+
+    <!-- 3D Specular Highlight (Glossy Glass Reflection) -->
+    <linearGradient id="glossHighlight" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.85" />
+      <stop offset="35%" stop-color="#ffffff" stop-opacity="0.35" />
+      <stop offset="70%" stop-color="#ffffff" stop-opacity="0.05" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.0" />
+    </linearGradient>
+
+    <!-- Outer 3D Neon Glow -->
+    <filter id="glowGreen" x="-20%" y="-40%" width="140%" height="180%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3.5" flood-color="#22c55e" flood-opacity="0.6" />
+    </filter>
+  </defs>
+
+  <!-- Recessed Base Track with 3D Bevel -->
+  <rect x="1.5" y="1.5" width="457" height="31" rx="15.5" fill="url(#trackBg)" stroke="url(#trackBorder)" stroke-width="1.5" />
+  <!-- Inner Recess Shadow (Top bevel depth) -->
+  <rect x="3" y="3" width="454" height="6" rx="3" fill="#000000" fill-opacity="0.65" />
+
+  <!-- 3D Active Fill Bar (20% of ~454 = 91px) -->
+  <g filter="url(#glowGreen)">
+    <rect x="3" y="3" width="91" height="28" rx="14" fill="url(#barGreen)" />
+    <!-- 3D Specular Reflection Stripe -->
+    <rect x="4" y="4" width="89" height="13" rx="6.5" fill="url(#glossHighlight)" />
+    <!-- Bottom Rim Darkening -->
+    <rect x="5" y="24" width="87" height="6" rx="3" fill="#052e16" fill-opacity="0.6" />
+  </g>
+
+  <!-- Metric Label with 3D Text Shadow -->
+  <text x="108" y="22" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="800" fill="#4ade80">
+    20% <tspan font-weight="600" fill="#9ca3af">ㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤLow Risk</tspan>
+  </text>
+</svg>
