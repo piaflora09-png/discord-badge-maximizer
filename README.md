@@ -242,33 +242,6 @@ Discord requires at least 1 viewer in the channel for hours to count. Instead of
 > [!IMPORTANT]
 > **Badge Synchronization Period (24h – 48h):**
 > Discord does not grant progression badges in real-time. Once hours are submitted or streamed, Discord's backend data warehouse calculates badge upgrades during scheduled analytics aggregation cycles (typically within **24 to 48 hours**).
-
----
-
-## How It Works
-
-```mermaid
-flowchart TD
-    subgraph Games ["Game Badges (games.py)"]
-        A1["Client Script"] -->|1. Auth Handshake| B1["Discord REST API /users/@me"]
-        B1 -->|Analytics Token| A1
-        A1 -->|2. Science Telemetry Payload| C1["Discord Analytics /api/v9/science"]
-        C1 -->|HTTP 204 Accepted| D1[("Discord Analytics Warehouse")]
-    end
-
-    subgraph Streaming ["Streaming Badge (stream.py)"]
-        A2["Stream Engine"] -->|1. Gateway op:2| B2["Main Gateway wss://gateway.discord.gg"]
-        B2 -->|2. op:4 Join Voice| C2["Voice WS & UDP Hole Punch"]
-        C2 -->|3. op:18 STREAM_CREATE| D2["Dedicated Stream Voice WS"]
-        D2 -->|4. DAVE MLS E2EE| E2[("Discord RTC / SFU Media Workers")]
-        A2 -->|5. FFmpeg H.264 & Opus + RTCP| E2
-        V2["Alt Viewer Bot / Real Viewers"] -->|6. Watch Stream op:20 + DAVE| E2
-    end
-
-    D1 -->|24-48h Aggregation| F["Updated Discord Profile Badges"]
-    E2 -->|Verified Broadcast + Viewer Hours| F
-```
-
 ---
 
 ## Trust & Account Risk Disclosure
@@ -321,6 +294,31 @@ flowchart TD
   - Verify that "Use data to personalize my Discord experience" is enabled under *User Settings &rarr; Data & Privacy*.
   - For maximum peace of mind, test claiming on a secondary account before applying to your main profile.
 
+---
+
+## How It Works
+
+```mermaid
+flowchart TD
+    subgraph Games ["Game Badges (games.py)"]
+        A1["Client Script"] -->|1. Auth Handshake| B1["Discord REST API /users/@me"]
+        B1 -->|Analytics Token| A1
+        A1 -->|2. Science Telemetry Payload| C1["Discord Analytics /api/v9/science"]
+        C1 -->|HTTP 204 Accepted| D1[("Discord Analytics Warehouse")]
+    end
+
+    subgraph Streaming ["Streaming Badge (stream.py)"]
+        A2["Stream Engine"] -->|1. Gateway op:2| B2["Main Gateway wss://gateway.discord.gg"]
+        B2 -->|2. op:4 Join Voice| C2["Voice WS & UDP Hole Punch"]
+        C2 -->|3. op:18 STREAM_CREATE| D2["Dedicated Stream Voice WS"]
+        D2 -->|4. DAVE MLS E2EE| E2[("Discord RTC / SFU Media Workers")]
+        A2 -->|5. FFmpeg H.264 & Opus + RTCP| E2
+        V2["Alt Viewer Bot / Real Viewers"] -->|6. Watch Stream op:20 + DAVE| E2
+    end
+
+    D1 -->|24-48h Aggregation| F["Updated Discord Profile Badges"]
+    E2 -->|Verified Broadcast + Viewer Hours| F
+```
 ---
 
 ## Credits & Acknowledgments
