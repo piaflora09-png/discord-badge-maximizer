@@ -38,8 +38,8 @@
   - [1. Maximize Game Variety & Game Time Badges (`games.py`)](#1-maximize-game-variety--game-time-badges-gamespy)
   - [2. Maximize Stream Time Badge (`stream.py`)](#2-maximize-stream-time-badge-streampy)
   - [Live Profile & Badge Inspection (Both Scripts)](#live-profile--badge-inspection-both-scripts)
-- [How It Works](#how-it-works)
 - [Trust & Account Risk Disclosure](#trust--account-risk-disclosure)
+- [How It Works](#how-it-works)
 
 ---
 
@@ -319,6 +319,7 @@ flowchart TD
     D1 -->|24-48h Aggregation| F["Updated Discord Profile Badges"]
     E2 -->|Verified Broadcast + Viewer Hours| F
 ```
+
 ---
 
 ## Credits & Acknowledgments
