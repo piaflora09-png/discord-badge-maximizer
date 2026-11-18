@@ -907,6 +907,7 @@ class VoiceConnection:
         self.encryption_mode: str = ""
         self.heartbeat_interval: float = 13.75
         self.running: bool = False
+        self.closed: bool = False
         self.nonce_counter: int = 0
         self._nonce_lock = threading.Lock()
         self._media_pump: MediaStreamPump | None = None
@@ -1244,6 +1245,8 @@ class VoiceConnection:
                         code = msg.get("code")
                         reason = msg.get("reason")
                         self.console.warn(self.label, f"voice server closed: {code} ({reason})")
+                        self.running = False
+                        self.closed = True
                         break
                 except Exception:
                     pass
@@ -1336,6 +1339,7 @@ class VoiceConnection:
 
     def close(self) -> None:
         self.running = False
+        self.closed = True
         self.stop_media_stream()
         if self.udp_sock:
             try:
@@ -1674,6 +1678,7 @@ class GatewayStreamEngine:
         self._stream_recreate_attempts = 0
         self._user_left_vc = False
         self._was_already_in_vc = False
+        self._rejoining_voice = False
         self.viewer_engine: ViewerEngine | None = None
 
         self._status_thread: threading.Thread | None = None
@@ -1878,15 +1883,69 @@ class GatewayStreamEngine:
 
         self._cleanup(self.guild_id)
 
+    def _force_rejoin_voice(self) -> None:
+        if not self.running or not self.ws or self.ws.closed or not self.channel_id:
+            return
+        self._rejoining_voice = True
+        self.stream_connected = False
+        self.voice_connected = False
+        if self.stream_conn:
+            try:
+                self.stream_conn.close()
+            except Exception:
+                pass
+            self.stream_conn = None
+        if self.voice_conn:
+            try:
+                self.voice_conn.close()
+            except Exception:
+                pass
+            self.voice_conn = None
+        try:
+            self.ws.send(json.dumps({
+                "op": 4,
+                "d": {
+                    "guild_id": self.guild_id,
+                    "channel_id": None,
+                    "self_mute": False,
+                    "self_deaf": False,
+                    "self_video": False,
+                },
+            }))
+        except Exception:
+            pass
+        time.sleep(0.5)
+        try:
+            self.ws.send(json.dumps({
+                "op": 4,
+                "d": {
+                    "guild_id": self.guild_id,
+                    "channel_id": self.channel_id,
+                    "self_mute": False,
+                    "self_deaf": False,
+                    "self_video": False,
+                },
+            }))
+            self.console.ok("voice", f"re-joining voice channel {self.console.ORANGE}#{self.channel_name}{self.console.RESET} ({self.channel_id})")
+        except Exception:
+            pass
+
     def _status_display(self) -> None:
+        disconnected_ticks = 0
         while self.running:
             time.sleep(10)
             if not self.running:
                 break
+            if self.voice_conn and (getattr(self.voice_conn, "closed", False) or not self.voice_conn.running or not self.voice_conn.ws or self.voice_conn.ws.closed):
+                self.voice_connected = False
+            if self.stream_conn and (getattr(self.stream_conn, "closed", False) or not self.stream_conn.running or not self.stream_conn.ws or self.stream_conn.ws.closed):
+                self.stream_connected = False
+
             counted_hours = self.counted_stream_seconds / 3600.0
             timer_str = format_timer(self.counted_stream_seconds)
             viewers = self.get_viewer_count()
             if self.stream_connected:
+                disconnected_ticks = 0
                 if viewers > 0:
                     lbl = f"{viewers} viewer" if viewers == 1 else f"{viewers} viewers"
                     status = f"{self.console.MAGENTA}🔴 LIVE ({lbl}){self.console.RESET}"
@@ -1895,11 +1954,17 @@ class GatewayStreamEngine:
                     status = f"{self.console.YELLOW}⚠️ LIVE (0 VIEWERS: PAUSED){self.console.RESET}"
                     self.console.live("stream", f"{status} · {timer_str} ({counted_hours:.2f}h) counted {self.console.GREY}(accumulation paused - waiting for viewer){self.console.RESET}")
             elif self.voice_connected:
+                disconnected_ticks = 0
                 status = f"{self.console.CYAN}⏳ starting stream{self.console.RESET}"
                 self.console.live("stream", f"{status} · {timer_str} ({counted_hours:.2f}h) counted")
             else:
+                disconnected_ticks += 1
                 status = f"{self.console.YELLOW}⏳ reconnecting{self.console.RESET}"
                 self.console.live("stream", f"{status} · {timer_str} ({counted_hours:.2f}h) counted")
+                if disconnected_ticks >= 2 and not self._user_left_vc:
+                    self.console.warn("watchdog", "voice/stream connection stalled — triggering auto-recovery...")
+                    self._force_rejoin_voice()
+                    disconnected_ticks = 0
 
             if self.stream_connected and self.stream_key and self.ws and not self.ws.closed:
                 try:
@@ -1999,19 +2064,31 @@ class GatewayStreamEngine:
                             },
                         }))
 
-                        res_msg = self.ws.recv(timeout=4.0)
-                        if res_msg:
-                            op_res = res_msg.get("op")
-                            t_res = res_msg.get("t")
-                            if op_res == 0 and t_res == "RESUMED":
-                                C.ok("gateway", "session resumed successfully")
-                                resumed = True
-                            elif op_res == 9:
-                                C.warn("gateway", "resume failed (invalid session), falling back to identify")
-                                time.sleep(1.0)
-                            elif op_res == 0 and t_res == "READY":
-                                self._handle_dispatch("READY", res_msg.get("d", {}))
-                                resumed = True
+                        for _ in range(30):
+                            res_msg = self.ws.recv(timeout=1.0)
+                            if isinstance(res_msg, dict):
+                                if res_msg.get("op") == "close":
+                                    code = res_msg.get("code")
+                                    if code == 4004:
+                                        C.err("auth", "fatal gateway authentication failure (code 4004: invalid token)")
+                                        C.err("auth", "please use Option 4 or 5 in the menu to update your token.")
+                                        self.running = False
+                                        return False
+                                op_res = res_msg.get("op")
+                                t_res = res_msg.get("t")
+                                if op_res == 0 and t_res == "RESUMED":
+                                    C.ok("gateway", "session resumed successfully")
+                                    resumed = True
+                                    break
+                                elif op_res == 9:
+                                    C.warn("gateway", "resume failed (invalid session), falling back to identify")
+                                    time.sleep(1.0)
+                                    break
+                                elif op_res == 0 and t_res == "READY":
+                                    self._handle_dispatch("READY", res_msg.get("d", {}))
+                                    resumed = True
+                                    break
+                            time.sleep(0.1)
                     except Exception:
                         resumed = False
 
@@ -2032,30 +2109,32 @@ class GatewayStreamEngine:
                         },
                     }))
 
-                    test_msg = self.ws.recv(timeout=2.0)
-                    if isinstance(test_msg, dict) and test_msg.get("op") == "close":
-                        code = test_msg.get("code")
-                        if code == 4004:
-                            C.err("auth", "fatal gateway authentication failure (code 4004: invalid token)")
-                            C.err("auth", "please use Option 4 or 5 in the menu to update your token.")
-                            self.running = False
-                            return False
-                    elif isinstance(test_msg, dict) and test_msg.get("op") == 0 and test_msg.get("t") == "READY":
-                        self._handle_dispatch("READY", test_msg.get("d", {}))
-                        resumed = True
+                    for _ in range(30):
+                        test_msg = self.ws.recv(timeout=1.0)
+                        if isinstance(test_msg, dict):
+                            if test_msg.get("op") == "close":
+                                code = test_msg.get("code")
+                                if code == 4004:
+                                    C.err("auth", "fatal gateway authentication failure (code 4004: invalid token)")
+                                    C.err("auth", "please use Option 4 or 5 in the menu to update your token.")
+                                    self.running = False
+                                    return False
+                            elif test_msg.get("op") == 0 and test_msg.get("t") == "READY":
+                                self._handle_dispatch("READY", test_msg.get("d", {}))
+                                resumed = True
+                                break
+                        time.sleep(0.1)
 
-                if resumed and self.channel_id:
-                    self.ws.send(json.dumps({
-                        "op": 4,
-                        "d": {
-                            "guild_id": self.guild_id,
-                            "channel_id": self.channel_id,
-                            "self_mute": False,
-                            "self_deaf": False,
-                            "self_video": False,
-                        },
-                    }))
-                    C.ok("voice", f"re-joining voice channel {C.ORANGE}#{self.channel_name}{C.RESET} ({self.channel_id})")
+                if not resumed:
+                    C.warn("gateway", "gateway connected but READY not received, retrying...")
+                    if self.ws:
+                        self.ws.close()
+                        self.ws = None
+                    backoff = min(15, backoff + 2)
+                    continue
+
+                if self.channel_id:
+                    self._force_rejoin_voice()
 
                 C.ok("gateway", "gateway reconnected successfully")
                 return True
@@ -2157,16 +2236,7 @@ class GatewayStreamEngine:
                     if t == "RESUMED":
                         self.console.ok("gateway", "gateway session resumed successfully")
                         if self.channel_id:
-                            self.ws.send(json.dumps({
-                                "op": 4,
-                                "d": {
-                                    "guild_id": self.guild_id,
-                                    "channel_id": self.channel_id,
-                                    "self_mute": False,
-                                    "self_deaf": False,
-                                    "self_video": False,
-                                },
-                            }))
+                            self._force_rejoin_voice()
                     else:
                         self._handle_dispatch(t, d)
 
@@ -2234,8 +2304,13 @@ class GatewayStreamEngine:
                 if new_session:
                     self.voice_session_id = new_session
 
+                if vs_channel_id and str(vs_channel_id) == str(self.channel_id):
+                    self._rejoining_voice = False
+
                 if (self.voice_connected or self.stream_connected or self.stream_ever_active):
                     if vs_channel_id is None:
+                        if self._rejoining_voice:
+                            return
                         if not self.voice_conn or self.voice_conn.ws is None or self.voice_conn.ws.closed:
                             C.warn("voice", "user manually disconnected from voice channel in Discord app")
                             C.info("gracefully stopping stream engine and saving accumulated stream hours...")
@@ -2270,6 +2345,7 @@ class GatewayStreamEngine:
                                 C.warn("viewer", "⚠️  all viewers left voice channel (0 present) — stream hour accumulation PAUSED!")
 
         elif event_type == "VOICE_SERVER_UPDATE":
+            self._rejoining_voice = False
             token = d.get("token", "")
             endpoint = d.get("endpoint") or ""
             v_guild = d.get("guild_id", self.guild_id)
@@ -2324,23 +2400,11 @@ class GatewayStreamEngine:
                 except Exception as exc:
                     C.warn("stream", f"stream create send error: {exc}")
             else:
-                C.err("voice", "voice WebSocket handshake FAILED, retrying in 3s...")
+                C.err("voice", "voice WebSocket handshake FAILED, requesting fresh voice session in 2s...")
                 def _retry_voice():
-                    time.sleep(3.0)
-                    if self.running and self.ws and not self.ws.closed:
-                        try:
-                            self.ws.send(json.dumps({
-                                "op": 4,
-                                "d": {
-                                    "guild_id": self.guild_id,
-                                    "channel_id": self.channel_id,
-                                    "self_mute": False,
-                                    "self_deaf": False,
-                                    "self_video": False,
-                                },
-                            }))
-                        except Exception:
-                            pass
+                    time.sleep(2.0)
+                    if self.running and not self.voice_connected:
+                        self._force_rejoin_voice()
                 threading.Thread(target=_retry_voice, daemon=True).start()
 
         elif event_type == "STREAM_CREATE":
@@ -2462,6 +2526,10 @@ class GatewayStreamEngine:
                         video_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "video.mp4")
                         if not os.path.exists(video_file):
                             video_file = os.path.join("assets", "video.mp4")
+                        if not os.path.exists(video_file):
+                            video_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "hero_arena.mp4")
+                        if not os.path.exists(video_file):
+                            video_file = os.path.join("assets", "hero_arena.mp4")
                         if os.path.exists(video_file):
                             if not self.stream_conn.start_media_stream(video_file):
                                 C.warn("stream_rtc", "falling back to silent audio pump")
