@@ -39,7 +39,7 @@
   - [2. Maximize Stream Time Badge (`stream.py`)](#2-maximize-stream-time-badge-streampy)
   - [Live Profile & Badge Inspection (Both Scripts)](#live-profile--badge-inspection-both-scripts)
 - [How It Works](#how-it-works)
-- [Important Disclaimer](#important-disclaimer)
+- [Trust & Account Risk Disclosure](#trust--account-risk-disclosure)
 
 ---
 
@@ -271,20 +271,65 @@ flowchart TD
 
 ---
 
-## Important Disclaimer
+## Trust & Account Risk Disclosure
 
-> [!WARNING]
-> This project is created for educational and security research purposes only. Automating user account telemetry and spoofing activity metrics violates Discord's Terms of Service. Use at your own discretion on accounts you are comfortable risking.
+> [!CAUTION]
+> **Account Violation & Platform Manipulation Warning:**
+> Automating user accounts, dispatching synthetic analytics telemetry, or operating headless streaming clients violates Discord's [Terms of Service](https://discord.com/terms) and [Community Guidelines](https://discord.com/guidelines). You risk receiving account violations, standing strikes, or permanent account suspensions for automation and/or platform manipulation. Always test tools on secondary/alt accounts first.
+
+### 📊 Script Risk Score Comparison
+
+| Tool | Core Mechanism | Primary Detection Vector | Risk Level | Risk Score |
+| :--- | :--- | :--- | :---: | :---: |
+| **`stream.py`** (Stream Maximizer) | Real-Time Voice Gateway & UDP Media Stream | Unnatural 24/7 uptime without user interaction | **Low Risk** | <img src="assets/risk_stream.svg" alt="20% Low Risk" height="24" /> |
+| **`games.py`** (Game Maximizer) | Synthetic Science Telemetry Ingestion | Data warehouse statistical anomaly audits | **Moderate Risk** | <img src="assets/risk_games.svg" alt="62% Moderate Risk" height="24" /> |
+
+---
+
+### 🛡️ `stream.py` (Voice & Video Streamer)
+**Risk Score**: 
+<p>
+  <img src="assets/risk_stream.svg" alt="Stream Risk Score: 20% (Low Risk)" width="460" />
+</p>
+
+- **Why Risk is Low:**
+  - **1:1 Real-Time Progression**: Stream hours accumulate strictly in real wall-clock time (1 streamed hour requires 1 real hour). There is zero artificial time-inflation or data fabrication.
+  - **Authentic Protocol Stack**: Establishes genuine Gateway v9, Voice WebSocket v7, and dedicated Stream RTC connections. It performs real RFC 5389 UDP hole punching, negotiates **DAVE MLS End-to-End Encryption**, pipes authentic H.264 video and Opus audio, and transmits RFC 1889 RTCP Sender Reports every 1.0s. To Discord's media relays (SFU), the stream is indistinguishable from an official desktop client.
+- **Where the Risk Lies:**
+  - Streaming continuously for weeks (e.g. 150+ hours uninterrupted) without natural pauses may trigger behavioral automation heuristics.
+  - Streaming in large, public, or partnered servers where users may report unusual headless activity.
+- **Recommended Best Practices:**
+  - Stream inside your own private server or an invite-only voice channel.
+  - Use Option 3 (Alt Viewer Bot) within your private server to safely fulfill viewer requirements.
+  - Take periodic breaks between multi-hour sessions to mimic realistic human usage.
+
+---
+
+### ⚠️ `games.py` (Game Activity & Variety Spoofer)
+**Risk Score**: 
+<p>
+  <img src="assets/risk_games.svg" alt="Games Risk Score: 62% (Moderate Risk)" width="460" />
+</p>
+
+- **Why Risk is Higher:**
+  - **Synthetic Telemetry**: The script transmits artificial `launch_game` and `running_game_heartbeat` events directly to `/api/v9/science`.
+  - **Statistical Anomalies**: Claiming 100+ titles or 5,000+ playtime hours in a few minutes generates an unnatural spike in your account analytics history. While Discord's ingestion endpoint accepts the payloads (`HTTP 204`), offline fraud detection and badge aggregation jobs could flag accounts with impossible game completion rates.
+  - **Cloudflare Interaction**: Relies on a valid `cf_clearance` cookie from your browser session to pass bot-protection firewalls.
+- **Recommended Best Practices:**
+  - **Do NOT claim 5,000+ hours in one go** on primary or high-value accounts.
+  - Claim in gradual, realistic batches (e.g. 25-50 hours or 5-10 games per session).
+  - Verify that "Use data to personalize my Discord experience" is enabled under *User Settings &rarr; Data & Privacy*.
+  - For maximum peace of mind, test claiming on a secondary account before applying to your main profile.
 
 ---
 
 ## Credits & Acknowledgments
 
+### `stream.py`
+- <a href="https://github.com/sonuworks"><img src="https://github.com/sonuworks.png?size=60" width="28" height="28" style="border-radius: 50%; vertical-align: middle;" alt="sonuworks" /></a> **[sonuworks](https://github.com/sonuworks)**: Advanced headless Gateway + Voice + Video Streamer + Go Live stream engine.
 ### `games.py`
 - <a href="https://github.com/revere-group"><img src="https://github.com/revere-group.png?size=60" width="28" height="28" style="border-radius: 50%; vertical-align: middle;" alt="Revere Group" /></a> **[Revere Group](https://github.com/revere-group)**: The core idea and original structure.
 - <a href="https://gist.github.com/dolfies"><img src="https://github.com/dolfies.png?size=60" width="28" height="28" style="border-radius: 50%; vertical-align: middle;" alt="dolfies" /></a> **[dolfies](https://gist.github.com/dolfies)**: `L44–L157`: From [Discord's executable fingerprint](https://gist.github.com/dolfies/d442777ab8354e18c1a3827e27f85c3a) reverse engineering script.
-### `stream.py`
-- <a href="https://github.com/sonuworks"><img src="https://github.com/sonuworks.png?size=60" width="28" height="28" style="border-radius: 50%; vertical-align: middle;" alt="sonuworks" /></a> **[sonuworks](https://github.com/sonuworks)**: Advanced headless Gateway + Voice + Video Streamer + Go Live stream engine.
 
 ---
 
